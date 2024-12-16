@@ -133,11 +133,7 @@ export function TranscriptionInterface({
             or drag and drop your file here
           </p>
           <p className="text-sm text-muted-foreground mt-2">
-            Supported Formats: WAV, MP3, M4A, CAF, AIFF, AVI, RMVB, FLV, MP4,
-            MOV, WMV
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Max size: 1GB; Max duration: 5 hours
+            Supported Formats: WAV, MP3, M4A, MP4
           </p>
         </div>
       </div>
