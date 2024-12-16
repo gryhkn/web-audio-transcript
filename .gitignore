@@ -1,0 +1,14 @@
+# Log files
+logs
+*.log
+
+# Dependencies and build outputs
+node_modules
+dist
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
