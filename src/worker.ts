@@ -1,11 +1,20 @@
 import { TextStreamer } from "@huggingface/transformers";
 import { WhisperPipeline } from "./services/WhisperPipeline";
-import {
-  cleanTranscriptionOutput,
-  MAX_NEW_TOKENS,
-} from "./utils/transcriptionUtils";
+import { cleanTranscriptionOutput } from "./utils/transcriptionUtils";
 
 let processing = false;
+const MAX_CHUNK_DURATION = 30; // saniye cinsinden maksimum chunk süresi
+
+async function splitAudioIntoChunks(audio, chunkDuration) {
+  const chunks = [];
+  const samplesPerChunk = chunkDuration * 16000; // 16kHz sampling rate
+
+  for (let i = 0; i < audio.length; i += samplesPerChunk) {
+    chunks.push(audio.slice(i, i + samplesPerChunk));
+  }
+
+  return chunks;
+}
 
 async function generate({ audio, language, timestamps = false }) {
   if (processing) return;
@@ -19,56 +28,69 @@ async function generate({ audio, language, timestamps = false }) {
     const processor = pipeline.getProcessor();
     const model = pipeline.getModel();
 
-    let startTime;
-    let numTokens = 0;
+    // Ses dosyasını chunklara böl
+    const audioChunks = await splitAudioIntoChunks(audio, MAX_CHUNK_DURATION);
+    let completeTranscription = "";
+    let totalChunks = audioChunks.length;
 
-    const callback_function = (output: any) => {
-      startTime ??= performance.now();
+    for (let i = 0; i < audioChunks.length; i++) {
+      let startTime = performance.now();
+      let numTokens = 0;
 
-      let tps;
-      if (numTokens++ > 0) {
-        tps = (numTokens / (performance.now() - startTime)) * 1000;
+      const callback_function = (output) => {
+        startTime ??= performance.now();
+        let tps;
+        if (numTokens++ > 0) {
+          tps = (numTokens / (performance.now() - startTime)) * 1000;
+        }
+
+        if (output && typeof output === "string") {
+          self.postMessage({
+            status: "update",
+            output: cleanTranscriptionOutput(output),
+            tps,
+            numTokens,
+            progress: ((i + 1) / totalChunks) * 100,
+          });
+        }
+      };
+
+      const streamer = new TextStreamer(tokenizer, {
+        skip_prompt: true,
+        callback_function,
+      });
+
+      const inputs = await processor(audioChunks[i], {
+        sampling_rate: 16000,
+        return_tensors: "pt",
+      });
+
+      if (!inputs || !inputs.input_features) {
+        throw new Error(`Failed to process audio chunk ${i + 1}`);
       }
 
-      if (output && typeof output === "string") {
-        const progress = (numTokens / MAX_NEW_TOKENS) * 100;
-        self.postMessage({
-          status: "update",
-          output: cleanTranscriptionOutput(output),
-          tps,
-          numTokens,
-          progress: Math.min(progress, 100),
-        });
-      }
-    };
+      const outputs = await model.generate({
+        ...inputs,
+        language,
+        return_timestamps: timestamps,
+        streamer,
+      });
 
-    const streamer = new TextStreamer(tokenizer, {
-      skip_prompt: true,
-      callback_function,
-    });
+      const chunkText = tokenizer.batch_decode(outputs);
+      completeTranscription += chunkText + " ";
 
-    const inputs = await processor(audio, {
-      sampling_rate: 16000,
-      return_tensors: "pt",
-    });
-
-    if (!inputs || !inputs.input_features) {
-      throw new Error("Failed to process audio input");
+      // Her chunk sonrası ilerleme durumunu bildir
+      self.postMessage({
+        status: "progress",
+        progress: ((i + 1) / totalChunks) * 100,
+        currentChunk: i + 1,
+        totalChunks,
+      });
     }
-
-    const outputs = await model.generate({
-      ...inputs,
-      max_new_tokens: MAX_NEW_TOKENS,
-      language,
-      return_timestamps: timestamps,
-      streamer,
-    });
-
-    const outputText = tokenizer.batch_decode(outputs);
 
     self.postMessage({
       status: "complete",
-      output: cleanTranscriptionOutput(outputText),
+      output: cleanTranscriptionOutput(completeTranscription),
     });
   } catch (error) {
     self.postMessage({

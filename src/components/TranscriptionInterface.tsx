@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { AudioUploader } from "./AudioUploader";
-import { TranscriptionOptions } from "./TranscriptionOptions";
 import { LanguageSelector } from "./LanguageSelector";
 import { useToast } from "@/components/ui/use-toast";
-import { Progress } from "@/components/ui/progress";
 import { IconUpload } from "@/components/ui/icons";
+import { TranscriptionOptions } from "./TranscriptionOptions";
+// Yeni import:
+import AudioPlayer from "./AudioPlayer";
 
 interface TranscriptionInterfaceProps {
   worker: Worker;
@@ -45,11 +45,9 @@ export function TranscriptionInterface({
 }: TranscriptionInterfaceProps) {
   const [showTimestamps, setShowTimestamps] = useState(false);
   const [language, setLanguage] = useState("en");
-  const [selectedAudio, setSelectedAudio] = useState<ArrayBuffer | null>(null);
+  const [selectedAudio, setSelectedAudio] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [transcribeProgress, setTranscribeProgress] = useState(0);
   const { toast } = useToast();
-  const [isModelLoading, setIsModelLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [preparedAudioData, setPreparedAudioData] =
     useState<Float32Array | null>(null);
@@ -67,7 +65,6 @@ export function TranscriptionInterface({
       }
       setError(null);
 
-      setTranscribeProgress(0);
       worker.postMessage({
         type: "generate",
         data: {
@@ -86,14 +83,9 @@ export function TranscriptionInterface({
     }
   };
 
-  const handleUploadProgress = (progress: number) => {
-    setUploadProgress(progress);
-  };
-
   const handleReset = () => {
     onReset();
     setUploadProgress(0);
-    setTranscribeProgress(0);
     setSelectedAudio(null);
     setPreparedAudioData(null);
     setError(null);
@@ -169,7 +161,7 @@ export function TranscriptionInterface({
                   />
                 </svg>
                 <span className="text-sm font-medium">
-                  {(selectedAudio as File).name}
+                  {selectedAudio.name}
                 </span>
               </div>
               <Button
@@ -227,19 +219,51 @@ export function TranscriptionInterface({
         </div>
       )}
 
+      {/* Yüklenen ses dosyası hazırsa AudioPlayer göster */}
+      {selectedAudio && preparedAudioData && (
+        <div className="mt-4">
+          <h3 className="font-medium mb-2">Audio Player:</h3>
+          <AudioPlayer
+            audioUrl={URL.createObjectURL(selectedAudio)}
+            mimeType={selectedAudio.type}
+          />
+        </div>
+      )}
+
       {selectedAudio && !isProcessing && !text && uploadProgress === 100 && (
-        <div className="flex justify-end space-x-2">
-          <Button variant="outline" onClick={handleReset}>
-            Cancel
-          </Button>
-          <Button onClick={handleTranscribe}>Start Transcription</Button>
+        <div className="space-y-4">
+          <div className="border rounded-lg p-4 space-y-4">
+            <h3 className="font-medium text-sm">Transcription Options</h3>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Language</label>
+                <LanguageSelector
+                  value={language}
+                  onChange={setLanguage}
+                  disabled={isProcessing}
+                />
+              </div>
+              <div className="flex items-center justify-end">
+                <TranscriptionOptions
+                  showTimestamps={showTimestamps}
+                  onTimestampChange={setShowTimestamps}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={handleReset}>
+              Cancel
+            </Button>
+            <Button onClick={handleTranscribe}>Start Transcription</Button>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-// İkon bileşeni
 function IconUpload({ className }: { className?: string }) {
   return (
     <svg
