@@ -4,6 +4,8 @@
 
 This project demonstrates real-time speech recognition using Transformers.js and OpenAI's Whisper model, accelerated with WebGPU. It allows users to transcribe both uploaded audio files and live microphone input directly in the browser.
 
+This project is based on and inspired by Xenova's whisper-web project, which pioneered browser-based Whisper model inference with WebGPU acceleration. You can find the original project [here](https://github.com/xenova/whisper-web).
+
 ## Key Features
 
 - Real-time speech recognition using Whisper model
