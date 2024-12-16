@@ -34,7 +34,7 @@ This project demonstrates real-time speech recognition using Transformers.js and
 
 ```bash
 bash
-git clone <repository-url>
+git clone https://github.com/gryhkn/web-whisper-transcriber.git
 cd webgpu-whisper
 ```
 
